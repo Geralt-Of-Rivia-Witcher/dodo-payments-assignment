@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "services/invoice-api",
+  "services/mock-psp"
+]
+resolver = "2"

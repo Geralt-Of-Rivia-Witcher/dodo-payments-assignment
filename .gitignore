@@ -1,0 +1,4 @@
+*.md
+*.pdf
+*.docx
+target/

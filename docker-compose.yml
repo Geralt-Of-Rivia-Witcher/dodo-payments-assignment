@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dodo_invoice
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dodo_invoice"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  mock-psp:
+    build:
+      context: .
+      dockerfile: services/mock-psp/Dockerfile
+    ports:
+      - "8081:8081"
+
+  invoice-api:
+    build:
+      context: .
+      dockerfile: services/invoice-api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-psp:
+        condition: service_started
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: dodo_invoice
+      PSP_BASE_URL: http://mock-psp:8081
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
