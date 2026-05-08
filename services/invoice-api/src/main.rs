@@ -1,6 +1,8 @@
+mod auth;
 mod error;
 
-use axum::{routing::get, Router};
+use auth::{require_api_key, AppState};
+use axum::{middleware, routing::get, Router};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use tracing::info;
@@ -22,7 +24,18 @@ async fn main() {
         .await
         .expect("run migrations");
 
-    let app = Router::new().route("/health", get(|| async { "ok" }));
+    let state = AppState { db: pool };
+
+    let public_routes = Router::new().route("/health", get(|| async { "ok" }));
+
+    let protected_routes = Router::new().route("/auth/health", get(|| async { "authorized" }));
+
+    let app = public_routes
+        .merge(protected_routes.route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_api_key,
+        )))
+        .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
         .await

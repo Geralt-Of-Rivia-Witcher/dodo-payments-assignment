@@ -3,3 +3,4 @@
 *.docx
 target/
 *.env
+*.vscode/
