@@ -1,3 +1,5 @@
+mod error;
+
 use axum::{routing::get, Router};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
