@@ -1,8 +1,14 @@
 mod auth;
+mod customers;
 mod error;
 
 use auth::{require_api_key, AppState};
-use axum::{middleware, routing::get, Router};
+use axum::{
+    middleware,
+    routing::{get, post},
+    Router,
+};
+use customers::{create_customer, get_customer, list_customers};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use tracing::info;
@@ -28,7 +34,9 @@ async fn main() {
 
     let public_routes = Router::new().route("/health", get(|| async { "ok" }));
 
-    let protected_routes = Router::new().route("/auth/health", get(|| async { "authorized" }));
+    let protected_routes = Router::new()
+        .route("/customers", post(create_customer).get(list_customers))
+        .route("/customers/:id", get(get_customer));
 
     let app = public_routes
         .merge(protected_routes.route_layer(middleware::from_fn_with_state(
