@@ -2,3 +2,4 @@
 *.pdf
 *.docx
 target/
+*.env

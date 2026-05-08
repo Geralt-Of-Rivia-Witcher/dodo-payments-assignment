@@ -37,6 +37,7 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: dodo_invoice
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/dodo_invoice
       PSP_BASE_URL: http://mock-psp:8081
     ports:
       - "8080:8080"

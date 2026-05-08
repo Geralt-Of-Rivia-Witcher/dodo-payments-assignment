@@ -5,6 +5,7 @@ RUN apk add --no-cache musl-dev openssl-dev pkgconfig
 COPY Cargo.toml ./
 COPY services/invoice-api/Cargo.toml services/invoice-api/Cargo.toml
 COPY services/mock-psp/Cargo.toml services/mock-psp/Cargo.toml
+COPY migrations migrations
 COPY services/invoice-api/src services/invoice-api/src
 COPY services/mock-psp/src services/mock-psp/src
 
