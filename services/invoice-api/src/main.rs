@@ -5,6 +5,7 @@ mod invoice_state;
 mod invoices;
 mod payments;
 mod webhook_outbox;
+mod webhook_worker;
 mod webhooks;
 
 use auth::{require_api_key, AppState};
@@ -19,6 +20,7 @@ use payments::pay_invoice;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, time::Duration};
 use tracing::info;
+use webhook_worker::spawn_webhook_worker;
 use webhooks::{create_webhook_endpoint, list_webhook_endpoints};
 
 #[tokio::main]
@@ -48,6 +50,8 @@ async fn main() {
         psp_base_url,
         http_client,
     };
+
+    spawn_webhook_worker(state.clone());
 
     let public_routes = Router::new().route("/health", get(|| async { "ok" }));
 
