@@ -1,0 +1,9 @@
+target
+.git
+.agents
+.codex
+.vscode
+*.md
+*.pdf
+*.docx
+*.postman_collection.json

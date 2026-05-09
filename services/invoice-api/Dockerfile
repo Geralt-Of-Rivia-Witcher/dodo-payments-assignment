@@ -1,6 +1,6 @@
-FROM rust:1.83-alpine AS builder
+FROM rust:1.88-alpine AS builder
 WORKDIR /app
-RUN apk add --no-cache musl-dev openssl-dev pkgconfig
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig
 
 COPY Cargo.toml ./
 COPY services/invoice-api/Cargo.toml services/invoice-api/Cargo.toml
@@ -13,7 +13,7 @@ RUN cargo build --release -p invoice-api
 
 FROM alpine:3.20
 WORKDIR /app
-RUN apk add --no-cache ca-certificates postgresql17-client
+RUN apk add --no-cache ca-certificates postgresql-client
 COPY --from=builder /app/target/release/invoice-api /app/invoice-api
 COPY migrations /app/migrations
 COPY scripts/wait-and-migrate.sh /app/wait-and-migrate.sh
