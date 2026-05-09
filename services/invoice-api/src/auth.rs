@@ -13,6 +13,8 @@ use crate::error::ApiError;
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub psp_base_url: String,
+    pub http_client: reqwest::Client,
 }
 
 #[derive(Clone, Copy)]

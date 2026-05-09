@@ -15,15 +15,15 @@ use customers::{create_customer, get_customer, list_customers};
 use invoices::{create_invoice, get_invoice, list_invoices};
 use payments::pay_invoice;
 use sqlx::postgres::PgPoolOptions;
-use std::env;
+use std::{env, time::Duration};
 use tracing::info;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().with_env_filter("info").init();
-    dotenvy::dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let psp_base_url = env::var("PSP_BASE_URL").expect("PSP_BASE_URL must be set");
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&database_url)
@@ -35,7 +35,16 @@ async fn main() {
         .await
         .expect("run migrations");
 
-    let state = AppState { db: pool };
+    let http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .expect("build http client");
+
+    let state = AppState {
+        db: pool,
+        psp_base_url,
+        http_client,
+    };
 
     let public_routes = Router::new().route("/health", get(|| async { "ok" }));
 
