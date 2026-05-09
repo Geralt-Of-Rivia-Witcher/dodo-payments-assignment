@@ -2,6 +2,7 @@ use crate::error::ApiError;
 
 pub const STATE_DRAFT: &str = "draft";
 pub const STATE_OPEN: &str = "open";
+pub const STATE_PROCESSING: &str = "processing";
 pub const STATE_PAID: &str = "paid";
 pub const STATE_VOID: &str = "void";
 pub const STATE_UNCOLLECTIBLE: &str = "uncollectible";
@@ -9,7 +10,7 @@ pub const STATE_UNCOLLECTIBLE: &str = "uncollectible";
 pub fn is_valid_state(state: &str) -> bool {
     matches!(
         state,
-        STATE_DRAFT | STATE_OPEN | STATE_PAID | STATE_VOID | STATE_UNCOLLECTIBLE
+        STATE_DRAFT | STATE_OPEN | STATE_PROCESSING | STATE_PAID | STATE_VOID | STATE_UNCOLLECTIBLE
     )
 }
 
@@ -22,7 +23,9 @@ pub fn can_transition(from: &str, to: &str) -> bool {
         (from, to),
         (STATE_DRAFT, STATE_OPEN)
             | (STATE_DRAFT, STATE_VOID)
-            | (STATE_OPEN, STATE_PAID)
+            | (STATE_OPEN, STATE_PROCESSING)
+            | (STATE_PROCESSING, STATE_PAID)
+            | (STATE_PROCESSING, STATE_OPEN)
             | (STATE_OPEN, STATE_VOID)
             | (STATE_OPEN, STATE_UNCOLLECTIBLE)
     )

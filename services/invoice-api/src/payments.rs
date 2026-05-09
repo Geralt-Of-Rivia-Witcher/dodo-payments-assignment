@@ -10,7 +10,9 @@ use uuid::Uuid;
 use crate::{
     auth::{AppState, AuthBusiness},
     error::ApiError,
-    invoice_state::{is_terminal_state, STATE_OPEN},
+    invoice_state::{
+        is_terminal_state, validate_transition, STATE_OPEN, STATE_PAID, STATE_PROCESSING,
+    },
 };
 
 #[derive(Debug, Deserialize)]
@@ -158,44 +160,63 @@ pub async fn pay_invoice(
         }
     }
 
+    validate_transition(&current_state, STATE_PROCESSING)?;
+    sqlx::query("UPDATE invoices SET state = $1, updated_at = now() WHERE id = $2")
+        .bind(STATE_PROCESSING)
+        .bind(invoice_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| ApiError::internal("failed to move invoice to processing state"))?;
+
     tx.commit()
         .await
         .map_err(|_| ApiError::internal("failed to commit payment transaction"))?;
 
     let psp_outcome = call_psp(&state, &card_token, total_amount_cents).await;
 
-    let (attempt_status, failure_code, psp_ref, message) = match psp_outcome {
+    let (attempt_status, failure_code, psp_ref, message, event_type) = match psp_outcome {
         PspOutcome::Succeeded { psp_ref } => (
             "succeeded".to_string(),
             None,
             Some(psp_ref),
             "payment processed by PSP".to_string(),
+            "invoice.paid",
         ),
         PspOutcome::Failed { code } => (
             "failed".to_string(),
             Some(code),
             None,
             "payment failed at PSP".to_string(),
+            "invoice.payment_failed",
         ),
         PspOutcome::Timeout => (
             "failed".to_string(),
             Some("psp_timeout".to_string()),
             None,
             "PSP timeout handled safely".to_string(),
+            "invoice.payment_failed",
         ),
         PspOutcome::NetworkError => (
             "failed".to_string(),
             Some("psp_network_error".to_string()),
             None,
             "PSP network error handled safely".to_string(),
+            "invoice.payment_failed",
         ),
         PspOutcome::UnexpectedResponse => (
             "failed".to_string(),
             Some("psp_unexpected_response".to_string()),
             None,
             "PSP response could not be parsed".to_string(),
+            "invoice.payment_failed",
         ),
     };
+
+    let mut final_tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|_| ApiError::internal("failed to start finalization transaction"))?;
 
     sqlx::query(
         "UPDATE payment_attempts SET status = $1, failure_code = $2, psp_ref = $3, updated_at = now() WHERE id = $4",
@@ -204,9 +225,59 @@ pub async fn pay_invoice(
     .bind(&failure_code)
     .bind(&psp_ref)
     .bind(payment_attempt_id)
-    .execute(&state.db)
+    .execute(&mut *final_tx)
     .await
     .map_err(|_| ApiError::internal("failed to update payment attempt outcome"))?;
+
+    let invoice_state_row =
+        sqlx::query("SELECT state FROM invoices WHERE id = $1 AND business_id = $2 FOR UPDATE")
+            .bind(invoice_id)
+            .bind(auth.business_id)
+            .fetch_one(&mut *final_tx)
+            .await
+            .map_err(|_| ApiError::internal("failed to lock invoice for finalization"))?;
+    let current_invoice_state: String = invoice_state_row.get("state");
+
+    let target_invoice_state = if attempt_status == "succeeded" {
+        STATE_PAID
+    } else {
+        STATE_OPEN
+    };
+    validate_transition(&current_invoice_state, target_invoice_state)?;
+
+    if current_invoice_state != target_invoice_state {
+        sqlx::query("UPDATE invoices SET state = $1, updated_at = now() WHERE id = $2")
+            .bind(target_invoice_state)
+            .bind(invoice_id)
+            .execute(&mut *final_tx)
+            .await
+            .map_err(|_| ApiError::internal("failed to update invoice state"))?;
+    }
+
+    let payload = serde_json::json!({
+        "invoice_id": invoice_id,
+        "payment_attempt_id": payment_attempt_id,
+        "status": attempt_status,
+        "failure_code": failure_code,
+        "psp_ref": psp_ref,
+    });
+
+    sqlx::query(
+        "INSERT INTO webhook_events (id, business_id, invoice_id, event_type, payload_json) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(auth.business_id)
+    .bind(invoice_id)
+    .bind(event_type)
+    .bind(payload)
+    .execute(&mut *final_tx)
+    .await
+    .map_err(|_| ApiError::internal("failed to enqueue webhook event"))?;
+
+    final_tx
+        .commit()
+        .await
+        .map_err(|_| ApiError::internal("failed to commit finalization transaction"))?;
 
     Ok(Json(PayInvoiceResponse {
         invoice_id,
@@ -267,7 +338,6 @@ fn read_idempotency_key(headers: &HeaderMap) -> Result<String, ApiError> {
     Ok(value.to_string())
 }
 
-#[derive(Debug)]
 enum PspOutcome {
     Succeeded { psp_ref: String },
     Failed { code: String },
