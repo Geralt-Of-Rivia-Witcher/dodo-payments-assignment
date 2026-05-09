@@ -242,6 +242,11 @@ stateDiagram-v2
 
 - I did not implement production-grade rate limiting or bot protection. I would add them before production deployment.
 
+5. Processing-state reconciliation job
+
+- I wanted to build a background job that detects invoices stuck in `processing` and resolves them to `paid` or `open`.
+- I cut this because it requires a heavier PSP status-check/reconciliation flow (plus retry and operational controls), which was beyond the assignment’s must-have scope and time budget.
+
 ---
 
 ## 7. Production Readiness Gaps

@@ -126,4 +126,4 @@ Included required tests:
 
 Video link:
 
-- `ADD_VIDEO_LINK_HERE`
+- `https://drive.google.com/file/d/1MybeL9hkMUsYTal5gTsP-MUZMPtvW0gh/view?usp=sharing`
