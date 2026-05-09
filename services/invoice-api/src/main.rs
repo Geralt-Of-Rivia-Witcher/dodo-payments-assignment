@@ -5,6 +5,7 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt().with_env_filter("info").init();
 
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");

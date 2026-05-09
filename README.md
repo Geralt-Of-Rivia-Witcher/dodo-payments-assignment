@@ -1,41 +1,28 @@
 # Dodo Backend Hiring Assignment (Rust)
 
-Minimal Invoice & Payment Service with mock PSP and webhook delivery worker.
-
-## Tech
-
-- Rust + Axum
-- PostgreSQL
-- SQLx migrations
-- Docker Compose
-
 ## Run
+
+Create file: `services/invoice-api/.env`
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dodo_invoice
+PSP_BASE_URL=http://localhost:8081
+```
+
+Then run:
 
 ```bash
 docker compose up --build
 ```
 
-Services:
-
-- Invoice API: `http://localhost:8080`
-- Mock PSP: `http://localhost:8081`
-- Postgres: `localhost:5432`
-
-Notes:
-
-- Migrations run automatically on Invoice API startup.
-- Seed API key (local): `dodo_test_live_key_1234567890`
-
 ## Required Curl Examples
-
-Set base values:
 
 ```bash
 API=http://localhost:8080
 AUTH="Authorization: Bearer dodo_test_live_key_1234567890"
 ```
 
-### 1) Create Customer
+### 1) Create customer
 
 ```bash
 curl -s -X POST "$API/customers" \
@@ -47,9 +34,7 @@ curl -s -X POST "$API/customers" \
   }'
 ```
 
-### 2) Create Invoice
-
-Replace `CUSTOMER_ID` from previous response.
+### 2) Create invoice
 
 ```bash
 curl -s -X POST "$API/invoices" \
@@ -68,9 +53,7 @@ curl -s -X POST "$API/invoices" \
   }'
 ```
 
-### 3) Attempt Payment (Success)
-
-Replace `INVOICE_ID` from previous response.
+### 3) Attempt payment (success)
 
 ```bash
 curl -s -X POST "$API/invoices/INVOICE_ID/pay" \
@@ -82,9 +65,7 @@ curl -s -X POST "$API/invoices/INVOICE_ID/pay" \
   }'
 ```
 
-### 4) Attempt Payment (Failure)
-
-Use a different invoice in `open` state (or recreate one), then:
+### 4) Attempt payment (failure)
 
 ```bash
 curl -s -X POST "$API/invoices/INVOICE_ID/pay" \
@@ -97,33 +78,19 @@ curl -s -X POST "$API/invoices/INVOICE_ID/pay" \
 ```
 
 ## API Documentation
-
 - See [API.md](./API.md)
 
 ## Design Document
-
 - See [DESIGN.md](./DESIGN.md)
 
 ## AI Usage
-
 - See [AI_USAGE.md](./AI_USAGE.md)
 
 ## Tests
-
-Run from workspace root:
 
 ```bash
 cargo test
 ```
 
-Included required tests:
-
-- Concurrency test for concurrent `/pay` on same invoice
-- Idempotency retry test (same key, same request)
-- PSP failure test (`tok_timeout` path)
-
 ## Demo Video
-
-Video link:
-
-- `https://drive.google.com/file/d/1MybeL9hkMUsYTal5gTsP-MUZMPtvW0gh/view?usp=sharing`
+- https://drive.google.com/file/d/1MybeL9hkMUsYTal5gTsP-MUZMPtvW0gh/view?usp=sharing
