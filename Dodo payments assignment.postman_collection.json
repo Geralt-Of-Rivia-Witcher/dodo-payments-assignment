@@ -1,0 +1,364 @@
+{
+  "info": {
+    "_postman_id": "b6823262-6d2d-4f2a-8172-0bbedc06ea98",
+    "name": "Dodo payments assignment",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17885527"
+  },
+  "item": [
+    {
+      "name": "PSP service",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8081/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Pay",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"card_token\": \"tok_success\",\n    \"amount_cents\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8081/charges",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8081",
+              "path": [
+                "charges"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8080/health",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8080",
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get customers",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "AUTHORIZATION",
+            "value": "Bearer dodo_test_live_key_1234567890",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://localhost:8080/customers",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "customers"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create customer",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "AUTHORIZATION",
+            "value": "Bearer dodo_test_live_key_1234567890",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Name 2\",\n    \"email\": \"name2@gmail.com\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/customers",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "customers"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get customer by ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/customers/b14af699-90d6-492b-afb5-bd90a0560178",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "customers",
+            "b14af699-90d6-492b-afb5-bd90a0560178"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create invoices",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"customer_id\": \"b14af699-90d6-492b-afb5-bd90a0560178\",\n    \"due_date\": \"2026-06-10\",\n    \"line_items\": [\n        {\n            \"description\": \"Some description 4\",\n            \"quantity\": 10,\n            \"unit_amount_cents\": 50\n        }\n    ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/invoices",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "invoices"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get all invoices",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/invoices?state=paid",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "invoices"
+          ],
+          "query": [
+            {
+              "key": "state",
+              "value": "paid"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get invoice",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/invoices/a807e845-b1c6-4e99-b385-c926e8a2c15c",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "invoices",
+            "a807e845-b1c6-4e99-b385-c926e8a2c15c"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Pay invoice",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Idempotency-Key",
+            "value": "{{$guid}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"card_token\": \"tok_success\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/invoices/:id/pay",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "invoices",
+            ":id",
+            "pay"
+          ],
+          "variable": [
+            {
+              "key": "id",
+              "value": "a807e845-b1c6-4e99-b385-c926e8a2c15c"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get all registered webhooks",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/webhook-endpoints",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "webhook-endpoints"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Register webhook endpoint",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"url\": \"https://webhook.site/0aca4b33-3857-47aa-affc-a3a69853c210\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:8080/webhook-endpoints",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "webhook-endpoints"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "Bearer dodo_test_live_key_1234567890",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "AUTHORIZATION",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ]
+}
