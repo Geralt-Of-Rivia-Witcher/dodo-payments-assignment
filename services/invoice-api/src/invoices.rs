@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{
     auth::{AppState, AuthBusiness},
     error::ApiError,
+    invoice_state::{is_valid_state, STATE_OPEN},
 };
 
 #[derive(Debug, Deserialize)]
@@ -131,7 +132,7 @@ pub async fn create_invoice(
     .bind(invoice_id)
     .bind(auth.business_id)
     .bind(req.customer_id)
-    .bind("open")
+    .bind(STATE_OPEN)
     .bind(total_amount_cents)
     .bind(req.due_date)
     .fetch_one(&mut *tx)
@@ -236,7 +237,7 @@ pub async fn list_invoices(
     Query(query): Query<ListInvoicesQuery>,
 ) -> Result<Json<Vec<InvoiceSummaryResponse>>, ApiError> {
     if let Some(ref state_filter) = query.state {
-        if !is_valid_invoice_state(state_filter) {
+        if !is_valid_state(state_filter) {
             return Err(ApiError::bad_request(
                 "validation_error",
                 "invalid invoice state filter",
@@ -283,8 +284,4 @@ pub async fn list_invoices(
         .collect();
 
     Ok(Json(invoices))
-}
-
-fn is_valid_invoice_state(state: &str) -> bool {
-    matches!(state, "draft" | "open" | "paid" | "void" | "uncollectible")
 }
