@@ -61,11 +61,13 @@ async fn create_charge(Json(req): Json<PspChargeRequest>) -> impl IntoResponse {
             sleep(Duration::from_millis(100)).await;
             (
                 StatusCode::OK,
-                Json(serde_json::to_value(PspSuccessResponse {
-                    status: "succeeded",
-                    psp_ref: Uuid::new_v4().to_string(),
-                })
-                .expect("serialize success response")),
+                Json(
+                    serde_json::to_value(PspSuccessResponse {
+                        status: "succeeded",
+                        psp_ref: Uuid::new_v4().to_string(),
+                    })
+                    .expect("serialize success response"),
+                ),
             )
                 .into_response()
         }
@@ -73,11 +75,13 @@ async fn create_charge(Json(req): Json<PspChargeRequest>) -> impl IntoResponse {
             sleep(Duration::from_millis(100)).await;
             (
                 StatusCode::OK,
-                Json(serde_json::to_value(PspFailureResponse {
-                    status: "failed",
-                    code: "insufficient_funds",
-                })
-                .expect("serialize failure response")),
+                Json(
+                    serde_json::to_value(PspFailureResponse {
+                        status: "failed",
+                        code: "insufficient_funds",
+                    })
+                    .expect("serialize failure response"),
+                ),
             )
                 .into_response()
         }
@@ -85,11 +89,13 @@ async fn create_charge(Json(req): Json<PspChargeRequest>) -> impl IntoResponse {
             sleep(Duration::from_millis(100)).await;
             (
                 StatusCode::OK,
-                Json(serde_json::to_value(PspFailureResponse {
-                    status: "failed",
-                    code: "card_declined",
-                })
-                .expect("serialize failure response")),
+                Json(
+                    serde_json::to_value(PspFailureResponse {
+                        status: "failed",
+                        code: "card_declined",
+                    })
+                    .expect("serialize failure response"),
+                ),
             )
                 .into_response()
         }
@@ -97,11 +103,13 @@ async fn create_charge(Json(req): Json<PspChargeRequest>) -> impl IntoResponse {
             sleep(Duration::from_secs(30)).await;
             (
                 StatusCode::OK,
-                Json(serde_json::to_value(PspSuccessResponse {
-                    status: "succeeded",
-                    psp_ref: Uuid::new_v4().to_string(),
-                })
-                .expect("serialize success response")),
+                Json(
+                    serde_json::to_value(PspSuccessResponse {
+                        status: "succeeded",
+                        psp_ref: Uuid::new_v4().to_string(),
+                    })
+                    .expect("serialize success response"),
+                ),
             )
                 .into_response()
         }

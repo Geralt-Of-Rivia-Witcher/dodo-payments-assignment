@@ -3,6 +3,7 @@ mod customers;
 mod error;
 mod invoices;
 mod invoice_state;
+mod payments;
 
 use auth::{require_api_key, AppState};
 use axum::{
@@ -12,6 +13,7 @@ use axum::{
 };
 use customers::{create_customer, get_customer, list_customers};
 use invoices::{create_invoice, get_invoice, list_invoices};
+use payments::pay_invoice;
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use tracing::info;
@@ -41,7 +43,8 @@ async fn main() {
         .route("/customers", post(create_customer).get(list_customers))
         .route("/customers/:id", get(get_customer))
         .route("/invoices", post(create_invoice).get(list_invoices))
-        .route("/invoices/:id", get(get_invoice));
+        .route("/invoices/:id", get(get_invoice))
+        .route("/invoices/:id/pay", post(pay_invoice));
 
     let app = public_routes
         .merge(protected_routes.route_layer(middleware::from_fn_with_state(
