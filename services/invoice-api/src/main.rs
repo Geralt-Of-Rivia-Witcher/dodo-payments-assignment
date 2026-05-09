@@ -1,8 +1,8 @@
 mod auth;
 mod customers;
 mod error;
-mod invoices;
 mod invoice_state;
+mod invoices;
 mod payments;
 
 use auth::{require_api_key, AppState};
