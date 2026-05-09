@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, State},
+    extract::{Extension, Path, Query, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,11 @@ pub struct CreateInvoiceLineItem {
     pub unit_amount_cents: i64,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListInvoicesQuery {
+    pub state: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct InvoiceResponse {
     pub id: Uuid,
@@ -33,6 +38,17 @@ pub struct InvoiceResponse {
     pub total_amount_cents: i64,
     pub due_date: chrono::NaiveDate,
     pub line_items: Vec<InvoiceLineItemResponse>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct InvoiceSummaryResponse {
+    pub id: Uuid,
+    pub customer_id: Uuid,
+    pub state: String,
+    pub total_amount_cents: i64,
+    pub due_date: chrono::NaiveDate,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -73,7 +89,7 @@ pub async fn create_invoice(
             ));
         }
 
-        if item.unit_amount_cents <= 0 {
+        if item.unit_amount_cents < 0 {
             return Err(ApiError::bad_request(
                 "validation_error",
                 "line item unit_amount_cents must be >= 0",
@@ -160,4 +176,115 @@ pub async fn create_invoice(
     };
 
     Ok(Json(response))
+}
+
+pub async fn get_invoice(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthBusiness>,
+    Path(invoice_id): Path<Uuid>,
+) -> Result<Json<InvoiceResponse>, ApiError> {
+    let invoice_row = sqlx::query(
+        "SELECT id, customer_id, state, total_amount_cents, due_date, created_at, updated_at
+         FROM invoices
+         WHERE id = $1 AND business_id = $2",
+    )
+    .bind(invoice_id)
+    .bind(auth.business_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| ApiError::internal("failed to fetch invoice"))?;
+
+    let Some(invoice_row) = invoice_row else {
+        return Err(ApiError::not_found("invoice not found"));
+    };
+
+    let item_rows = sqlx::query(
+        "SELECT description, quantity, unit_amount_cents
+         FROM invoice_line_items
+         WHERE invoice_id = $1
+         ORDER BY id",
+    )
+    .bind(invoice_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| ApiError::internal("failed to fetch invoice line items"))?;
+
+    let line_items = item_rows
+        .into_iter()
+        .map(|row| InvoiceLineItemResponse {
+            description: row.get("description"),
+            quantity: row.get("quantity"),
+            unit_amount_cents: row.get("unit_amount_cents"),
+        })
+        .collect();
+
+    Ok(Json(InvoiceResponse {
+        id: invoice_row.get("id"),
+        customer_id: invoice_row.get("customer_id"),
+        state: invoice_row.get("state"),
+        total_amount_cents: invoice_row.get("total_amount_cents"),
+        due_date: invoice_row.get("due_date"),
+        line_items,
+        created_at: invoice_row.get("created_at"),
+        updated_at: invoice_row.get("updated_at"),
+    }))
+}
+
+pub async fn list_invoices(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthBusiness>,
+    Query(query): Query<ListInvoicesQuery>,
+) -> Result<Json<Vec<InvoiceSummaryResponse>>, ApiError> {
+    if let Some(ref state_filter) = query.state {
+        if !is_valid_invoice_state(state_filter) {
+            return Err(ApiError::bad_request(
+                "validation_error",
+                "invalid invoice state filter",
+            ));
+        }
+    }
+
+    let rows = if let Some(state_filter) = query.state {
+        sqlx::query(
+            "SELECT id, customer_id, state, total_amount_cents, due_date, created_at, updated_at
+             FROM invoices
+             WHERE business_id = $1 AND state = $2
+             ORDER BY created_at DESC",
+        )
+        .bind(auth.business_id)
+        .bind(state_filter)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| ApiError::internal("failed to list invoices"))?
+    } else {
+        sqlx::query(
+            "SELECT id, customer_id, state, total_amount_cents, due_date, created_at, updated_at
+             FROM invoices
+             WHERE business_id = $1
+             ORDER BY created_at DESC",
+        )
+        .bind(auth.business_id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| ApiError::internal("failed to list invoices"))?
+    };
+
+    let invoices = rows
+        .into_iter()
+        .map(|row| InvoiceSummaryResponse {
+            id: row.get("id"),
+            customer_id: row.get("customer_id"),
+            state: row.get("state"),
+            total_amount_cents: row.get("total_amount_cents"),
+            due_date: row.get("due_date"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        })
+        .collect();
+
+    Ok(Json(invoices))
+}
+
+fn is_valid_invoice_state(state: &str) -> bool {
+    matches!(state, "draft" | "open" | "paid" | "void" | "uncollectible")
 }

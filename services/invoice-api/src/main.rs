@@ -10,7 +10,7 @@ use axum::{
     Router,
 };
 use customers::{create_customer, get_customer, list_customers};
-use invoices::create_invoice;
+use invoices::{create_invoice, get_invoice, list_invoices};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use tracing::info;
@@ -39,7 +39,8 @@ async fn main() {
     let protected_routes = Router::new()
         .route("/customers", post(create_customer).get(list_customers))
         .route("/customers/:id", get(get_customer))
-        .route("/invoices", post(create_invoice));
+        .route("/invoices", post(create_invoice).get(list_invoices))
+        .route("/invoices/:id", get(get_invoice));
 
     let app = public_routes
         .merge(protected_routes.route_layer(middleware::from_fn_with_state(
