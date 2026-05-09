@@ -1,27 +1,7 @@
-mod auth;
-mod customers;
-mod error;
-mod invoice_state;
-mod invoices;
-mod payments;
-mod webhook_outbox;
-mod webhook_worker;
-mod webhooks;
-
-use auth::{require_api_key, AppState};
-use axum::{
-    middleware,
-    routing::{get, post},
-    Router,
-};
-use customers::{create_customer, get_customer, list_customers};
-use invoices::{create_invoice, get_invoice, list_invoices};
-use payments::pay_invoice;
+use invoice_api::{auth::AppState, build_app, webhook_worker::spawn_webhook_worker};
 use sqlx::postgres::PgPoolOptions;
 use std::{env, time::Duration};
 use tracing::info;
-use webhook_worker::spawn_webhook_worker;
-use webhooks::{create_webhook_endpoint, list_webhook_endpoints};
 
 #[tokio::main]
 async fn main() {
@@ -52,26 +32,7 @@ async fn main() {
     };
 
     spawn_webhook_worker(state.clone());
-
-    let public_routes = Router::new().route("/health", get(|| async { "ok" }));
-
-    let protected_routes = Router::new()
-        .route("/customers", post(create_customer).get(list_customers))
-        .route("/customers/:id", get(get_customer))
-        .route("/invoices", post(create_invoice).get(list_invoices))
-        .route("/invoices/:id", get(get_invoice))
-        .route("/invoices/:id/pay", post(pay_invoice))
-        .route(
-            "/webhook-endpoints",
-            post(create_webhook_endpoint).get(list_webhook_endpoints),
-        );
-
-    let app = public_routes
-        .merge(protected_routes.route_layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_api_key,
-        )))
-        .with_state(state);
+    let app = build_app(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
         .await
