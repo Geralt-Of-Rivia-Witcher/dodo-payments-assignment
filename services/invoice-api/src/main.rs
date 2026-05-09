@@ -4,6 +4,7 @@ mod error;
 mod invoice_state;
 mod invoices;
 mod payments;
+mod webhook_outbox;
 mod webhooks;
 
 use auth::{require_api_key, AppState};

@@ -13,6 +13,7 @@ use crate::{
     invoice_state::{
         is_terminal_state, validate_transition, STATE_OPEN, STATE_PAID, STATE_PROCESSING,
     },
+    webhook_outbox::enqueue_webhook_event_with_deliveries,
 };
 
 #[derive(Debug, Deserialize)]
@@ -262,17 +263,14 @@ pub async fn pay_invoice(
         "psp_ref": psp_ref,
     });
 
-    sqlx::query(
-        "INSERT INTO webhook_events (id, business_id, invoice_id, event_type, payload_json) VALUES ($1, $2, $3, $4, $5)",
+    enqueue_webhook_event_with_deliveries(
+        &mut final_tx,
+        auth.business_id,
+        invoice_id,
+        event_type,
+        payload,
     )
-    .bind(Uuid::new_v4())
-    .bind(auth.business_id)
-    .bind(invoice_id)
-    .bind(event_type)
-    .bind(payload)
-    .execute(&mut *final_tx)
-    .await
-    .map_err(|_| ApiError::internal("failed to enqueue webhook event"))?;
+    .await?;
 
     final_tx
         .commit()
