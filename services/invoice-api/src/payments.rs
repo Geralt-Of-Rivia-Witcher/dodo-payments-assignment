@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::{
@@ -79,6 +80,12 @@ pub async fn pay_invoice(
     .map_err(|_| ApiError::internal("failed to check idempotency key"))?;
 
     if let Some(row) = existing_attempt {
+        info!(
+            business_id = %auth.business_id,
+            invoice_id = %invoice_id,
+            idempotency_key = %idempotency_key,
+            "payment idempotent replay hit"
+        );
         return build_replay_or_conflict(row, invoice_id, &card_token);
     }
 
@@ -105,6 +112,12 @@ pub async fn pay_invoice(
     let total_amount_cents: i64 = invoice_row.get("total_amount_cents");
 
     if current_state != STATE_OPEN {
+        warn!(
+            business_id = %auth.business_id,
+            invoice_id = %invoice_id,
+            current_state = %current_state,
+            "payment rejected due to non-payable invoice state"
+        );
         if is_terminal_state(&current_state) {
             return Err(ApiError::conflict(
                 "invoice_not_payable",
@@ -119,6 +132,13 @@ pub async fn pay_invoice(
     }
 
     let payment_attempt_id = Uuid::new_v4();
+    info!(
+        business_id = %auth.business_id,
+        invoice_id = %invoice_id,
+        payment_attempt_id = %payment_attempt_id,
+        idempotency_key = %idempotency_key,
+        "starting payment attempt"
+    );
 
     let insert_result = sqlx::query(
         "INSERT INTO payment_attempts (id, business_id, invoice_id, idempotency_key, card_token, status) VALUES ($1, $2, $3, $4, $5, $6)",
@@ -135,6 +155,12 @@ pub async fn pay_invoice(
     match insert_result {
         Ok(_) => {}
         Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+            warn!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                idempotency_key = %idempotency_key,
+                "payment insert hit idempotency race; resolving with replay lookup"
+            );
             tx.rollback()
                 .await
                 .map_err(|_| ApiError::internal("failed to rollback payment transaction"))?;
@@ -172,45 +198,93 @@ pub async fn pay_invoice(
     tx.commit()
         .await
         .map_err(|_| ApiError::internal("failed to commit payment transaction"))?;
+    info!(
+        business_id = %auth.business_id,
+        invoice_id = %invoice_id,
+        payment_attempt_id = %payment_attempt_id,
+        "payment attempt committed and invoice moved to processing"
+    );
 
     let psp_outcome = call_psp(&state, &card_token, total_amount_cents).await;
 
     let (attempt_status, failure_code, psp_ref, message, event_type) = match psp_outcome {
-        PspOutcome::Succeeded { psp_ref } => (
-            "succeeded".to_string(),
-            None,
-            Some(psp_ref),
-            "payment processed by PSP".to_string(),
-            "invoice.paid",
-        ),
-        PspOutcome::Failed { code } => (
-            "failed".to_string(),
-            Some(code),
-            None,
-            "payment failed at PSP".to_string(),
-            "invoice.payment_failed",
-        ),
-        PspOutcome::Timeout => (
-            "failed".to_string(),
-            Some("psp_timeout".to_string()),
-            None,
-            "PSP timeout handled safely".to_string(),
-            "invoice.payment_failed",
-        ),
-        PspOutcome::NetworkError => (
-            "failed".to_string(),
-            Some("psp_network_error".to_string()),
-            None,
-            "PSP network error handled safely".to_string(),
-            "invoice.payment_failed",
-        ),
-        PspOutcome::UnexpectedResponse => (
-            "failed".to_string(),
-            Some("psp_unexpected_response".to_string()),
-            None,
-            "PSP response could not be parsed".to_string(),
-            "invoice.payment_failed",
-        ),
+        PspOutcome::Succeeded { psp_ref } => {
+            info!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                payment_attempt_id = %payment_attempt_id,
+                psp_ref = %psp_ref,
+                "PSP payment succeeded"
+            );
+            (
+                "succeeded".to_string(),
+                None,
+                Some(psp_ref),
+                "payment processed by PSP".to_string(),
+                "invoice.paid",
+            )
+        }
+        PspOutcome::Failed { code } => {
+            warn!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                payment_attempt_id = %payment_attempt_id,
+                failure_code = %code,
+                "PSP payment failed"
+            );
+            (
+                "failed".to_string(),
+                Some(code),
+                None,
+                "payment failed at PSP".to_string(),
+                "invoice.payment_failed",
+            )
+        }
+        PspOutcome::Timeout => {
+            warn!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                payment_attempt_id = %payment_attempt_id,
+                "PSP timeout"
+            );
+            (
+                "failed".to_string(),
+                Some("psp_timeout".to_string()),
+                None,
+                "PSP timeout handled safely".to_string(),
+                "invoice.payment_failed",
+            )
+        }
+        PspOutcome::NetworkError => {
+            warn!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                payment_attempt_id = %payment_attempt_id,
+                "PSP network error"
+            );
+            (
+                "failed".to_string(),
+                Some("psp_network_error".to_string()),
+                None,
+                "PSP network error handled safely".to_string(),
+                "invoice.payment_failed",
+            )
+        }
+        PspOutcome::UnexpectedResponse => {
+            warn!(
+                business_id = %auth.business_id,
+                invoice_id = %invoice_id,
+                payment_attempt_id = %payment_attempt_id,
+                "PSP response parse/shape error"
+            );
+            (
+                "failed".to_string(),
+                Some("psp_unexpected_response".to_string()),
+                None,
+                "PSP response could not be parsed".to_string(),
+                "invoice.payment_failed",
+            )
+        }
     };
 
     let mut final_tx = state
@@ -276,6 +350,14 @@ pub async fn pay_invoice(
         .commit()
         .await
         .map_err(|_| ApiError::internal("failed to commit finalization transaction"))?;
+    info!(
+        business_id = %auth.business_id,
+        invoice_id = %invoice_id,
+        payment_attempt_id = %payment_attempt_id,
+        attempt_status = %attempt_status,
+        event_type = %event_type,
+        "payment finalized and webhook event enqueued"
+    );
 
     Ok(Json(PayInvoiceResponse {
         invoice_id,

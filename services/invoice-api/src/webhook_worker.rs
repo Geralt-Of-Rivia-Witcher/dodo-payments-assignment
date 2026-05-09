@@ -4,7 +4,7 @@ use serde_json::Value;
 use sha2::Sha256;
 use sqlx::Row;
 use tokio::time::{sleep, Duration};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::auth::AppState;
@@ -59,6 +59,13 @@ async fn process_once(state: &AppState) -> Result<(), String> {
 
         match response {
             Ok(resp) if resp.status().is_success() => {
+                info!(
+                    delivery_id = %delivery.delivery_id,
+                    event_id = %delivery.event_id,
+                    attempt_number = delivery.attempt_number + 1,
+                    http_status = resp.status().as_u16(),
+                    "webhook delivery succeeded"
+                );
                 sqlx::query(
                     "UPDATE webhook_deliveries
                      SET status = 'succeeded',
@@ -78,6 +85,13 @@ async fn process_once(state: &AppState) -> Result<(), String> {
             }
             Ok(resp) => {
                 let status_code = resp.status().as_u16() as i32;
+                warn!(
+                    delivery_id = %delivery.delivery_id,
+                    event_id = %delivery.event_id,
+                    attempt_number = delivery.attempt_number + 1,
+                    http_status = status_code,
+                    "webhook delivery failed with non-2xx response"
+                );
                 handle_delivery_failure(
                     state,
                     delivery.delivery_id,
@@ -93,6 +107,13 @@ async fn process_once(state: &AppState) -> Result<(), String> {
                 } else {
                     "network_error".to_string()
                 };
+                warn!(
+                    delivery_id = %delivery.delivery_id,
+                    event_id = %delivery.event_id,
+                    attempt_number = delivery.attempt_number + 1,
+                    error = %error_label,
+                    "webhook delivery request failed"
+                );
                 handle_delivery_failure(
                     state,
                     delivery.delivery_id,
@@ -189,6 +210,11 @@ async fn handle_delivery_failure(
     let next_attempt = current_attempt + 1;
 
     if next_attempt >= MAX_ATTEMPTS {
+        warn!(
+            delivery_id = %delivery_id,
+            attempt_number = next_attempt,
+            "webhook delivery exhausted retry budget"
+        );
         sqlx::query(
             "UPDATE webhook_deliveries
              SET status = 'exhausted',
@@ -211,6 +237,12 @@ async fn handle_delivery_failure(
     }
 
     let backoff_seconds = retry_backoff_seconds(next_attempt);
+    info!(
+        delivery_id = %delivery_id,
+        attempt_number = next_attempt,
+        retry_in_seconds = backoff_seconds,
+        "webhook delivery scheduled for retry"
+    );
 
     sqlx::query(
         "UPDATE webhook_deliveries
