@@ -4,6 +4,7 @@ mod error;
 mod invoice_state;
 mod invoices;
 mod payments;
+mod webhooks;
 
 use auth::{require_api_key, AppState};
 use axum::{
@@ -17,6 +18,7 @@ use payments::pay_invoice;
 use sqlx::postgres::PgPoolOptions;
 use std::{env, time::Duration};
 use tracing::info;
+use webhooks::{create_webhook_endpoint, list_webhook_endpoints};
 
 #[tokio::main]
 async fn main() {
@@ -53,7 +55,11 @@ async fn main() {
         .route("/customers/:id", get(get_customer))
         .route("/invoices", post(create_invoice).get(list_invoices))
         .route("/invoices/:id", get(get_invoice))
-        .route("/invoices/:id/pay", post(pay_invoice));
+        .route("/invoices/:id/pay", post(pay_invoice))
+        .route(
+            "/webhook-endpoints",
+            post(create_webhook_endpoint).get(list_webhook_endpoints),
+        );
 
     let app = public_routes
         .merge(protected_routes.route_layer(middleware::from_fn_with_state(
