@@ -10,6 +10,7 @@ use crate::{
     auth::{AppState, AuthBusiness},
     error::ApiError,
     invoice_state::{is_valid_state, STATE_OPEN},
+    webhook_outbox::enqueue_webhook_event_with_deliveries,
 };
 
 #[derive(Debug, Deserialize)]
@@ -152,6 +153,19 @@ pub async fn create_invoice(
         .await
         .map_err(|_| ApiError::internal("failed to create invoice line item"))?;
     }
+
+    let payload = serde_json::json!({
+        "invoice_id": invoice_id,
+        "status": STATE_OPEN,
+    });
+    enqueue_webhook_event_with_deliveries(
+        &mut tx,
+        auth.business_id,
+        invoice_id,
+        "invoice.created",
+        payload,
+    )
+    .await?;
 
     tx.commit()
         .await

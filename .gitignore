@@ -1,4 +1,5 @@
-*.md
+temp.md
+TASK_CHECKLIST.md
 *.pdf
 *.docx
 target/
